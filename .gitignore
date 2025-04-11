@@ -162,9 +162,12 @@ cython_debug/
 #Weights
 .pkl
 .task
-3DDFA-V3/assets/
+3DDFA-V3/assets/*
+models/FLAME2020/*.pkl
+models/face_landmarker.task
 
 
 #input output data
-3DDFA-V3/Input Video/
-3DDFA-V3/Output Video/
+3DDFA-V3/Input Video/*
+3DDFA-V3/Output Video/*
+3DDFA-V3/examples/*
