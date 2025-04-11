@@ -26,17 +26,7 @@ def process_frame(frame, recon_model, facebox_detector, args):
     recon_model.input_img = im_tensor.to(args.device)
     results = recon_model.forward()
     
-    # Get the projected vertices
-    v2d = results['v3d'][0]  # Already a numpy array
-    v2d = v2d[:, :2]  # Take only x,y coordinates
-    
-    # Draw mesh on the frame
-    for i in range(results['tri'].shape[0]):
-        triangle = results['tri'][i]
-        pts = v2d[triangle].astype(np.int32)
-        cv2.polylines(frame, [pts], True, (0, 255, 0), 1)
-    
-    return frame
+    return trans_params, results, frame
 
 def main(args):
     recon_model = face_model(args)
@@ -44,23 +34,17 @@ def main(args):
     
     # Check if input is a video file
     if args.inputpath.lower().endswith(('.mp4', '.avi', '.mov')):
+        # Create output directory for video frames
+        video_name = os.path.splitext(os.path.basename(args.inputpath))[0]
+        output_dir = os.path.join(args.savepath, video_name)
+        os.makedirs(output_dir, exist_ok=True)
+        
         # Open video file
         cap = cv2.VideoCapture(args.inputpath)
         if not cap.isOpened():
             print(f"Error: Could not open video {args.inputpath}")
             return
             
-        # Get video properties
-        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        fps = int(cap.get(cv2.CAP_PROP_FPS))
-        
-        # Create output video writer
-        video_name = os.path.splitext(os.path.basename(args.inputpath))[0]
-        output_path = os.path.join(args.savepath, f"{video_name}_processed.mp4")
-        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-        out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
-        
         frame_count = 0
         while True:
             ret, frame = cap.read()
@@ -68,14 +52,24 @@ def main(args):
                 break
                 
             print(f"Processing frame {frame_count}")
-            processed_frame = process_frame(frame, recon_model, facebox_detector, args)
-            out.write(processed_frame)
+            trans_params, results, frame = process_frame(frame, recon_model, facebox_detector, args)
+            
+            # Visualize and save results
+            my_visualize = visualize(results, args)
+            frame_output_dir = os.path.join(output_dir, f"frame_{frame_count:04d}")
+            os.makedirs(frame_output_dir, exist_ok=True)
+            
+            my_visualize.visualize_and_output(
+                trans_params,
+                frame,
+                frame_output_dir,
+                f"frame_{frame_count:04d}"
+            )
+            
             frame_count += 1
             
         cap.release()
-        out.release()
         print(f"Processed {frame_count} frames")
-        print(f"Output video saved to: {output_path}")
     else:
         # Process images as before
         im_path = get_data_path(args.inputpath)

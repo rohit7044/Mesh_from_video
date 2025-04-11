@@ -165,23 +165,17 @@ def write_obj_with_colors(obj_name, vertices, triangles, colors):
 
 class visualize:
     def __init__(self, result_dict, args):
+
+        self.items = ['render_shape','render_face']
         self.result_dict = result_dict
-        self.args = args
+        option_list = ['ldm68', 'ldm106', 'ldm106_2d', 'ldm134', 'seg', 'seg_visible']
+        for i in option_list:
+            if i in self.result_dict.keys():
+                self.items.append(i)
+        
         self.visualize_dict = []
         self.save_dict = {}
-        self.items = []
-        if args.ldm68:
-            self.items.append('ldm68')
-        if args.ldm106:
-            self.items.append('ldm106')
-        if args.ldm106_2d:
-            self.items.append('ldm106_2d')
-        if args.ldm134:
-            self.items.append('ldm134')
-        if args.seg:
-            self.items.append('seg')
-        if args.seg_visible:
-            self.items.append('seg_visible')
+        self.args = args
 
     def visualize_and_output(self, trans_params, img, save_path, img_name):
         # assert batch_size = 1
