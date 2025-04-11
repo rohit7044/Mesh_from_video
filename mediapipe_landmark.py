@@ -1,0 +1,44 @@
+# mediapipe_landmarks.py
+
+import mediapipe as mp
+import time
+
+class FaceLandmarkerDetector:
+    def __init__(self, model_path="models/face_landmarker.task"):
+        self.mp_image = mp.Image
+        self.result = None  # To store the latest result
+
+        # Load required MediaPipe modules
+        self.BaseOptions = mp.tasks.BaseOptions
+        self.FaceLandmarker = mp.tasks.vision.FaceLandmarker
+        self.FaceLandmarkerOptions = mp.tasks.vision.FaceLandmarkerOptions
+        self.FaceLandmarkerResult = mp.tasks.vision.FaceLandmarkerResult
+        self.VisionRunningMode = mp.tasks.vision.RunningMode
+
+        # Create landmarker with callback
+        self._create_landmarker(model_path)
+
+    def _create_landmarker(self, model_path):
+        def callback(result, output_image, timestamp_ms):
+            self.result = result
+            print("Detected {} face(s)".format(len(result.face_landmarks) if result.face_landmarks else 0))
+
+        options = self.FaceLandmarkerOptions(
+            base_options=self.BaseOptions(model_asset_path=model_path),
+            running_mode=self.VisionRunningMode.LIVE_STREAM,
+            result_callback=callback,
+            num_faces=1  # You can increase if needed
+        )
+
+        self.landmarker = self.FaceLandmarker.create_from_options(options)
+
+    def detect_async(self, frame):
+        mp_image = self.mp_image(image_format=mp.ImageFormat.SRGB, data=frame)
+        timestamp = int(time.time() * 1000)
+        self.landmarker.detect_async(image=mp_image, timestamp_ms=timestamp)
+
+    def get_latest_result(self):
+        return self.result
+
+    def close(self):
+        self.landmarker.close()
