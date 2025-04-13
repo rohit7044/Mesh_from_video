@@ -171,3 +171,4 @@ models/face_landmarker.task
 3DDFA-V3/Input Video/*
 3DDFA-V3/Output Video/*
 3DDFA-V3/examples/*
+3DDFA-V3/Output expression mesh/*
