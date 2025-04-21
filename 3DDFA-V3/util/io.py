@@ -5,8 +5,24 @@ import sys
 import torch
 import numpy as np
 from PIL import Image
+import trimesh
 # from .preprocess import back_resize_crop_img
 # from .nv_diffrast import MeshRenderer
+from .mask_lips import mask_region
+
+#CONSTANTS
+face_model_path = '/mnt/d/Github Repo/TalkingAvatar/3DDFA-V3/assets/face_model.npy'
+
+def load_face_model(path):
+    return np.load(path,allow_pickle=True).item()
+
+def load_lip_mask_region(face_model):
+    annotations = face_model['annotation']
+    # get your lip seeds (upper + lower)
+    lip_seeds = np.concatenate([annotations[5], annotations[6]]).astype(int)
+    return lip_seeds
+
+
 
 def plot_kpts(image, kpts, color = 'g'):
 
@@ -266,7 +282,7 @@ class visualize:
             v3d_new = self.result_dict['v3d'][0].copy()
             v3d_new[..., -1] = 10 - v3d_new[..., -1]
             write_obj_with_colors(os.path.join(save_path, img_name + '_extractTex.obj'), v3d_new, self.result_dict['tri'], self.result_dict['extractTex'])
-            # cv2.imwrite(os.path.join(save_path, img_name + '_extractTex_uv.png'), (self.result_dict['extractTex_uv']*255).astype(np.uint8)[:,:,::-1])
+            cv2.imwrite(os.path.join(save_path, img_name + '_extractTex_uv.png'), (self.result_dict['extractTex_uv']*255).astype(np.uint8)[:,:,::-1])
 
         # please note that the coordinates of .obj do not account for the trans_params.
         if self.args.useTex:
@@ -288,11 +304,23 @@ class visualize:
             y_end = y_start + img.shape[0]
             img_res[y_start:y_end, x_start:x_end] = image
 
-        cv2.imwrite(os.path.join(save_path, img_name + '.png'), img_res)
-        np.save(os.path.join(save_path, img_name + '.npy'), self.save_dict)
+        # cv2.imwrite(os.path.join(save_path, img_name + '.png'), img_res)
+        if not bool(self.save_dict):
+            pass
+        else:
+            np.save(os.path.join(save_path, img_name + '.npy'), self.save_dict)        
+        # Extract Lip mesh
+        face_model = load_face_model(face_model_path)
+        lip_seeds = load_lip_mask_region(face_model)
+        
+        # Mesh Components
+        V_full = v3d_new
+        F_full = self.result_dict['tri']
+        C_full = self.result_dict['extractTex']
+        
+        # Convert mesh to trimesh format
+        mesh = trimesh.Trimesh(vertices=V_full, faces=F_full, vertex_colors=(C_full * 255).astype(np.uint8), process=False)
 
-
-
-
-
-
+        # Extract lip mesh
+        lip_mesh = mask_region(mesh, face_model, lip_seeds)
+        lip_mesh.export(os.path.join(save_path, img_name + '_lip_mesh.obj'))

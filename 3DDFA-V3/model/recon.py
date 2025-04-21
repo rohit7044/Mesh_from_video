@@ -532,27 +532,71 @@ class face_model:
 
         # use median-filtered-weight pca-texture for texture blending at invisible region, todo: poisson blending should give better-looking results √ 2024-11-11
         if self.args.extractTex:
-            _, _, uv_color_pca, _ = self.uv_renderer(self.uv_coords_torch.unsqueeze(0).clone(), self.tri, (torch.clamp(face_texture, 0, 1)).clone())
-            img_colors = bilinear_interpolate(self.input_img.permute(0, 2, 3, 1).detach()[0], v2d[0, :, 0].detach(), 223 - v2d[0, :, 1].detach())
-            _, _, uv_color_img, _ = self.uv_renderer(self.uv_coords_torch.unsqueeze(0).clone(), self.tri, img_colors.unsqueeze(0).clone())
-            _, _, uv_weight, _ = self.uv_renderer(self.uv_coords_torch.unsqueeze(0).clone(), self.tri, (1 - torch.stack((visible_idx,)*3, axis=-1).unsqueeze(0).type(torch.float32).to(self.tri.device)).clone())
+            # render PCA‐based texture
+            _, _, uv_color_pca, _ = self.uv_renderer(
+                self.uv_coords_torch.unsqueeze(0).clone(),
+                self.tri,
+                torch.clamp(face_texture, 0, 1).clone()
+            )
+            # sample image colors into UV space
+            img_colors = bilinear_interpolate(
+                self.input_img.permute(0, 2, 3, 1)[0].detach(),
+                v2d[0, :, 0].detach(),
+                223 - v2d[0, :, 1].detach()
+            )
+            _, _, uv_color_img, _ = self.uv_renderer(
+                self.uv_coords_torch.unsqueeze(0).clone(),
+                self.tri,
+                img_colors.unsqueeze(0).clone()
+            )
+            # weight map for invisible regions
+            _, _, uv_weight, _ = self.uv_renderer(
+                self.uv_coords_torch.unsqueeze(0).clone(),
+                self.tri,
+                (1 - torch.stack((visible_idx,)*3, axis=-1)
+                     .unsqueeze(0)
+                     .to(torch.float32)
+                     .to(self.tri.device)
+                ).clone()
+            )
 
-            # median_filtered_w = cv2.medianBlur((uv_weight.detach().cpu().permute(0, 2, 3, 1).numpy()[0]*255).astype(np.uint8), 31)/255.
+            # --- Poisson blending via cv2.seamlessClone ---
+            # 1) build mask of to‑blend pixels
+            w = uv_weight.detach().cpu().numpy()[0,0]            # H×W float
+            mask = (w > 0.5).astype(np.uint8) * 255             # binary mask
 
-            uv_color_pca = uv_color_pca.detach().cpu().permute(0, 2, 3, 1).numpy()[0]
-            uv_color_img = uv_color_img.detach().cpu().permute(0, 2, 3, 1).numpy()[0]
+            # 2) prepare src (PCA) and dst (image) as uint8 BGR
+            src = (np.clip(
+                uv_color_pca.detach().cpu().permute(0,2,3,1).numpy()[0],
+                0,1
+            ) * 255).astype(np.uint8)
+            dst = (np.clip(
+                uv_color_img.detach().cpu().permute(0,2,3,1).numpy()[0],
+                0,1
+            ) * 255).astype(np.uint8)
+            # if your arrays are RGB, swap to BGR:
+            # src = src[..., ::-1]; dst = dst[..., ::-1]
 
-            # res_colors = ((1 - median_filtered_w) * np.clip(uv_color_img, 0, 1) + median_filtered_w * np.clip(uv_color_pca, 0, 1))
-            # result_dict['extractTex_uv'] = res_colors
-            
-            if no_pca:
-                # use fliped img-texture for texture blending
-                res_colors = cv2.seamlessClone((uv_color_img*255).astype(np.uint8), cv2.flip((uv_color_img*255).astype(np.uint8), 1), ((1 - uv_weight.detach().cpu().permute(0, 2, 3, 1).numpy()[0])*255)[:,:,0].astype(np.uint8), (512, 512), cv2.NORMAL_CLONE) / 255.
-            else:
-                # use pca-texture for texture blending
-                res_colors = cv2.seamlessClone((uv_color_img*255).astype(np.uint8), (uv_color_pca*255).astype(np.uint8), ((1 - uv_weight.detach().cpu().permute(0, 2, 3, 1).numpy()[0])*255)[:,:,0].astype(np.uint8), (512, 512), cv2.NORMAL_CLONE) / 255.
-        
-            v_colors = get_colors_from_uv(res_colors.copy(), self.uv_coords_numpy.copy())
+            # 3) center of cloning = image center
+            h, w_img = mask.shape
+            center = (w_img//2, h//2)
+
+            # 4) seamless (Poisson) clone; try MIXED_CLONE if desired
+            blended = cv2.seamlessClone(
+                src, dst, mask, center, cv2.NORMAL_CLONE
+            )
+
+            # 5) back to float [0,1] RGB
+            res_colors = blended.astype(np.float32) / 255.0
+            # if you swapped channels earlier, swap back:
+            # res_colors = res_colors[..., ::-1]
+
+            result_dict['extractTex_uv'] = res_colors
+            v_colors = get_colors_from_uv(
+                res_colors.copy(),
+                self.uv_coords_numpy.copy()
+            )
             result_dict['extractTex'] = v_colors
+
 
         return result_dict

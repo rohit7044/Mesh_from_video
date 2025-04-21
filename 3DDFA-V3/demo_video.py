@@ -118,7 +118,7 @@ if __name__ == '__main__':
                         help='save and show segmentation in 2d without visible mask' )
     parser.add_argument('--seg_visible', default=False, type=lambda x: x.lower() in ['true', '1'],
                         help='save and show segmentation in 2d with visible mask' )
-    parser.add_argument('--useTex', default=True, type=lambda x: x.lower() in ['true', '1'],
+    parser.add_argument('--useTex', default=False, type=lambda x: x.lower() in ['true', '1'],
                         help='save obj use texture from BFM model')
     parser.add_argument('--extractTex', default=True, type=lambda x: x.lower() in ['true', '1'],
                         help='save obj use texture extracted from input image')
