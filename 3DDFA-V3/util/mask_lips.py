@@ -4,29 +4,6 @@ import os
 
 from collections import deque
 
-# Face nesh Path
-# face_mesh_path = "Output Video"
-# face_model_path = "assets/face_model.npy"
-
-# Read mesh
-
-def read_meshes(path):
-    meshes = []
-    # Get all frame folders (they are named frame_XXXX)
-    frame_folders = [f for f in os.listdir(path) if f.startswith('frame_') and os.path.isdir(os.path.join(path, f))]
-    # Sort frame folders to ensure correct order
-    frame_folders.sort()
-    
-    for frame_folder in frame_folders:
-        frame_path = os.path.join(path, frame_folder)
-        # Look for .obj files with '_extractTex' in their names
-        for file in os.listdir(frame_path):
-            if file.endswith(".obj") and "_extractTex" in file:
-                mesh_path = os.path.join(frame_path, file)
-                meshes.append(trimesh.load(mesh_path))
-                break  # Found the extractTex mesh for this frame
-    
-    return meshes
 
 def load_face_model(path):
     return np.load(path,allow_pickle=True).item()
@@ -89,14 +66,3 @@ def mask_region(mesh, face_model, part_indices, hops=10):
 
     # 5) build sub‑mesh
     return trimesh.Trimesh(vertices=V_reg, faces=F_reg, process=False)
-
-# if __name__ == "__main__":
-#     # meshes = read_meshes(face_mesh_path)
-#     face_model = load_face_model(face_model_path)
-#     annotations = face_model['annotation']
-#     # get your lip seeds (upper + lower)
-#     lip_seeds = np.concatenate([annotations[5], annotations[6]]).astype(int)
-
-#     # extract a lip + 2‑hop surrounding patch
-#     patch = mask_region("Output Video/frame_0001/frame_0001_extractTex.obj", face_model, lip_seeds, hops=10)
-#     patch.export("Output expression mesh/lip_mesh.ply")

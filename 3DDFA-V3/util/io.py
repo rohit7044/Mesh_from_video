@@ -8,19 +8,24 @@ from PIL import Image
 import trimesh
 # from .preprocess import back_resize_crop_img
 # from .nv_diffrast import MeshRenderer
-from .mask_lips import mask_region
+# from .mask_lips import mask_region
 
 #CONSTANTS
-face_model_path = '/mnt/d/Github Repo/TalkingAvatar/3DDFA-V3/assets/face_model.npy'
+# face_model_path = './assets/face_model.npy'
 
-def load_face_model(path):
-    return np.load(path,allow_pickle=True).item()
+# def load_face_model(path):
+#     return np.load(path,allow_pickle=True).item()
 
-def load_lip_mask_region(face_model):
-    annotations = face_model['annotation']
-    # get your lip seeds (upper + lower)
-    lip_seeds = np.concatenate([annotations[5], annotations[6]]).astype(int)
-    return lip_seeds
+# def load_lip_mask_region(face_model):
+#     annotations = face_model['annotation']
+#     # get your lip seeds (upper + lower)
+#     lip_seeds = np.concatenate([annotations[5], annotations[6]]).astype(int)
+#     return lip_seeds
+
+# def extraact_mean_mesh_expr_basis(face_model):
+#     exp_basis = face_model['exp'].T.reshape(64, -1, 3)
+#     mean_shape = face_model['u'].reshape(-1, 3)
+#     return exp_basis, mean_shape
 
 
 
@@ -151,7 +156,7 @@ def back_resize_ldms(ldms, trans_params):
 
     return ldms
 
-def write_obj_with_colors(obj_name, vertices, triangles, colors):
+def write_obj_and_mesh_npy_with_colors(obj_name, vertices, triangles, colors):
     ''' Save 3D face model with texture represented by colors.
     Args:
         obj_name: str
@@ -178,6 +183,25 @@ def write_obj_with_colors(obj_name, vertices, triangles, colors):
         for i in range(triangles.shape[0]):
             s = 'f {} {} {}\n'.format(triangles[i, 0], triangles[i, 1], triangles[i, 2])
             f.write(s)
+    
+    path = obj_name.replace(".obj", ".npz")
+    # ensure extension
+    if not path.lower().endswith((".npz", ".npy")):
+        path = path + ".npz"
+
+    if colors is None:
+        # just verts + faces
+        np.savez_compressed(path,
+                            vertices=vertices.astype(np.float32),
+                            faces=triangles.astype(np.int32))
+    else:
+        # include colors too
+        np.savez_compressed(path,
+                            vertices=vertices.astype(np.float32),
+                            faces=triangles.astype(np.int32),
+                            colors =colors.astype(np.float32))
+
+
 
 class visualize:
     def __init__(self, result_dict, args):
@@ -281,14 +305,14 @@ class visualize:
         if self.args.extractTex:
             v3d_new = self.result_dict['v3d'][0].copy()
             v3d_new[..., -1] = 10 - v3d_new[..., -1]
-            write_obj_with_colors(os.path.join(save_path, img_name + '_extractTex.obj'), v3d_new, self.result_dict['tri'], self.result_dict['extractTex'])
+            write_obj_and_mesh_npy_with_colors(os.path.join(save_path, img_name + '_extractTex.obj'), v3d_new, self.result_dict['tri'], self.result_dict['extractTex'])
             cv2.imwrite(os.path.join(save_path, img_name + '_extractTex_uv.png'), (self.result_dict['extractTex_uv']*255).astype(np.uint8)[:,:,::-1])
 
         # please note that the coordinates of .obj do not account for the trans_params.
         if self.args.useTex:
             v3d_new = self.result_dict['v3d'][0].copy()
             v3d_new[..., -1] = 10 - v3d_new[..., -1]
-            write_obj_with_colors(os.path.join(save_path, img_name + '_pcaTex.obj'), v3d_new, self.result_dict['tri'], self.result_dict['face_texture'][0])
+            write_obj_and_mesh_npy_with_colors(os.path.join(save_path, img_name + '_pcaTex.obj'), v3d_new, self.result_dict['tri'], self.result_dict['face_texture'][0])
 
         len_visualize_dict = len(self.visualize_dict)
         if len(self.visualize_dict) < 4:
@@ -309,18 +333,28 @@ class visualize:
             pass
         else:
             np.save(os.path.join(save_path, img_name + '.npy'), self.save_dict)        
-        # Extract Lip mesh
-        face_model = load_face_model(face_model_path)
-        lip_seeds = load_lip_mask_region(face_model)
         
-        # Mesh Components
-        V_full = v3d_new
-        F_full = self.result_dict['tri']
-        C_full = self.result_dict['extractTex']
+        # # Extract Lip mesh
+        # face_model = load_face_model(face_model_path)
+        # lip_seeds = load_lip_mask_region(face_model)
         
-        # Convert mesh to trimesh format
-        mesh = trimesh.Trimesh(vertices=V_full, faces=F_full, vertex_colors=(C_full * 255).astype(np.uint8), process=False)
+        # # Mesh Components
+        # V_full = v3d_new
+        # F_full = self.result_dict['tri']
+        # C_full = self.result_dict['extractTex']
+        
+        # # Convert mesh to trimesh format
+        # mesh = trimesh.Trimesh(vertices=V_full, faces=F_full, vertex_colors=(C_full * 255).astype(np.uint8), process=False)
 
-        # Extract lip mesh
-        lip_mesh = mask_region(mesh, face_model, lip_seeds)
-        lip_mesh.export(os.path.join(save_path, img_name + '_lip_mesh.obj'))
+        # # Extract lip mesh from each frame
+        # frame_lip_mesh = mask_region(mesh, face_model, lip_seeds)
+        # frame_lip_mesh.export(os.path.join(save_path, img_name + '_lip_mesh.obj'))
+
+        # # Extract lip mesh from mean mesh
+        # exp_basis, mean_shape = extraact_mean_mesh_expr_basis(face_model)
+        # mmean_shape_mesh = mask_region(mean_shape, face_model, lip_seeds)
+        # mmean_shape_mesh.export(os.path.join(save_path, img_name + '_mean_mesh.obj'))
+
+        # # Extract Lip mesh from expression mesh
+        # expr_mesh = mask_region(exp_basis, face_model, lip_seeds)
+        # expr_mesh.export(os.path.join(save_path, img_name + '_expr_mesh.obj'))
