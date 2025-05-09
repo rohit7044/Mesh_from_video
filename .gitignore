@@ -157,4 +157,18 @@ cython_debug/
 #  be found at https://github.com/github/gitignore/blob/main/Global/JetBrains.gitignore
 #  and can be added to the global gitignore or merged into this file.  For a more nuclear
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
-#.idea/
+.idea/
+
+#Weights
+.pkl
+.task
+3DDFA-V3/assets/*
+models/FLAME2020/*.pkl
+models/face_landmarker.task
+
+
+#input output data
+3DDFA-V3/Input Video/*
+3DDFA-V3/Output Video/*
+3DDFA-V3/examples/*
+3DDFA-V3/Output expression mesh/*
